@@ -1,0 +1,5 @@
+openai==1.0.0b3
+configparser==6.0.0
+textract==1.6.5
+ebooklib==0.18
+beautifulsoup4==4.12.2

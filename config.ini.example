@@ -1,0 +1,13 @@
+[DEFAULT]
+# OpenAI API Key for GPT and DALL·E 3 interactions
+OPENAI_API_KEY = YOUR_API_KEY_HERE
+
+# Preferred art style for the illustrations (e.g., realistic, cartoonish, vintage).
+# Leave blank to let the system decide.
+ART_STYLE =
+
+# The input folder where the text files (.txt, .odt, .pdf) are located.
+INPUT_FOLDER = ./input/
+
+# The target folder where generated outputs (CSVs, Images, PDFs/ODTs) will be saved.
+TARGET_FOLDER = ./output/
