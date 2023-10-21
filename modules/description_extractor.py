@@ -16,6 +16,20 @@ client = OpenAI(
     api_key=config['DEFAULT']['OPENAI_API_KEY']
 )
 
+DEFAULT_EXTRACTION = {"characters": [{"name": "Charlotte",
+                                      "description": "A determined and passionate writer who misses the connect that she used to have with her audience. She is the creator of a story about a lonely girl with magical powers and a loving prince. She is a bit self-conscious and desires for someone to love the story she has created. Dresses up to look like a serious author. Anxious and biting on her thumbnail when contemplating inviting someone to read her story."},
+                                     {"name": "Roget",
+                                      "description": "A paid reader with a polite demeanor. He is tall, handsome with large lips, thin nose, and a rakish hairstyle. His attire is often semi-formal with khakis and a cornflower blue buttoned-down shirt. He appears to be wealthy, based on the narrative cues given in the text. He is also described as being very expressive and his enjoyment of the story is visible in his non-verbal cues. Has genuine interest in the work he is reviewing."}],
+                      "locations": [{"name": "Coffee shop",
+                                     "description": "A quiet place where Roget and Charlotte meet for him to read her book. They occupy a booth at the back, away from distractions."},
+                                    {"name": "Internet Writing platforms - WattPad, AO3, and RoyalRoad",
+                                     "description": "Once thriving online platforms where diverse narratives created by human writers used to enthrall numerous readers. However, following the advent of a deep learning model that could produce stories better than a human, the platforms lost their audience and authenticity."}],
+                      "props": [{"name": "Laptop",
+                                 "description": "A piece of technology Roget uses to read Charlotte\"s novel. It is in dark mode and also used for maintaining notes related to the read."},
+                                {"name": "Flash Drive",
+                                 "description": "Charlotte carries the novel she has written on this. It is passed to Roget to read."}],
+                      "artstyle": "Realistic, given the emotional depth and complexity of human interactions within a modern, technologically advanced setting."}
+
 
 def split_text_into_sections(text: str, max_chars=20000) -> list:
     """
@@ -38,53 +52,34 @@ def split_text_into_sections(text: str, max_chars=20000) -> list:
     return sections
 
 
-def extract_descriptions_from_section(section: str) -> dict:
+def extract_descriptions_from_section(section: str, local_mode: bool = False) -> dict:
     """
     Uses GPT-4 to extract character, prop, and location descriptions from the provided section of text.
     """
-    # Construct the user prompt
-    print("Extracting descriptions from the following section:")
-    print(section)
-    user_prompt = section
-
     # System prompt from the saved file
     with open("./prompts/extract_descriptions_system_prompt.txt", "r") as f:
         system_prompt = f.read()
 
-    # Call to GPT-4
-    print("Calling GPT-4 for description extraction...")
-    completion = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-    )
+    if not local_mode:
+        # Call to GPT-4
+        print("Calling GPT-4 for description extraction...")
+        completion = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": section}
+            ]
+        )
 
-    response_content = json.loads(completion.choices[0].message.content)
-    print("Response from GPT-4 for description extraction:")
-    print(response_content)
+        response_content = json.loads(completion.choices[0].message.content)
+        print("Response from GPT-4 for description extraction:")
+        print(response_content)
+    else:
+        response_content = DEFAULT_EXTRACTION
     return response_content
 
 
-def consolidate_descriptions(descriptions: list) -> dict:
-    """
-    Combines descriptions for named characters, props, and locations across multiple mentions.
-    """
-    consolidated_data = {}
-    # Logic to consolidate descriptions (this will be expanded further)
-    # This is a placeholder for now.
-    for description in descriptions:
-        for key, value in description.items():
-            if key in consolidated_data:
-                consolidated_data[key].append(value)
-            else:
-                consolidated_data[key] = [value]
-
-    return consolidated_data
-
-
-def enhance_descriptions(data: dict) -> dict:
+def enhance_descriptions(data: list[dict], local_mode: bool = False) -> dict:
     """
     Enhances sparse or ambiguous descriptions.
     """
@@ -95,19 +90,22 @@ def enhance_descriptions(data: dict) -> dict:
     with open("./prompts/consolidate_descriptions_system_prompt.txt", "r") as f:
         system_prompt = f.read()
 
-    # Call to GPT-4
-    print("Calling GPT-4 for description enhancement...")
-    completion = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-    )
+    if not local_mode:
+        # Call to GPT-4
+        print("Calling GPT-4 for description enhancement...")
+        completion = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+        )
 
-    response_content = json.loads(completion.choices[0].message.content)
-    print("Response from GPT-4 for description enhancement:")
-    print(response_content)
+        response_content = json.loads(completion.choices[0].message.content)
+        print("Response from GPT-4 for description enhancement:")
+        print(response_content)
+    else:
+        return DEFAULT_EXTRACTION
     return response_content
 
 
@@ -146,29 +144,12 @@ def extract_chapters_from_epub(filepath: str) -> list:
     return chapters
 
 
-def extract_descriptions_from_file(filepath: str) -> dict:
+def extract_content_as_chapters(filepath: str) -> list:
     """
-    Main function to extract character, prop, and location descriptions from the provided file.
+    Extracts content from the file and returns it as a list of chapters.
+    For EPUBs, it returns the actual chapters. For other formats, it returns a list with a single entry.
     """
     if filepath.endswith('.epub'):
-        chapters = extract_chapters_from_epub(filepath)
-        all_descriptions = []
-
-        for chapter in chapters:
-            sections = split_text_into_sections(chapter)
-
-            for section in sections:
-                all_descriptions.append(extract_descriptions_from_section(section))
-
+        return extract_chapters_from_epub(filepath)
     else:
-        text = textract.process(filepath).decode('utf-8')
-        sections = split_text_into_sections(text)
-
-        all_descriptions = []
-        for section in sections:
-            all_descriptions.append(extract_descriptions_from_section(section))
-
-    consolidated_data = consolidate_descriptions(all_descriptions)
-    final_data = enhance_descriptions(consolidated_data)
-
-    return final_data
+        return [textract.process(filepath).decode('utf-8')]

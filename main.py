@@ -1,7 +1,7 @@
 import configparser
 import os
-
-from modules import description_extractor
+from models import entities
+from modules import description_extractor, scene_generator
 
 # Load configurations from config.ini
 config = configparser.ConfigParser()
@@ -37,6 +37,7 @@ if not os.path.exists(target_folder):
 
 
 def main():
+    local_mode = False
     # Show the list of files to be processed
     print("The following files will be processed:")
     for path in filepaths:
@@ -48,11 +49,42 @@ def main():
         print("Operation aborted.")
         return
 
+    # get title from first file
+    book_title = os.path.splitext(os.path.basename(filepaths[0]))[0]
+    book = entities.Book(book_title)
+
+    chapters = []
     for filepath in filepaths:
-        print(f"\nProcessing {filepath}...")
-        descriptions = description_extractor.extract_descriptions_from_file(filepath)
-        print(descriptions)
-        # Further processing or saving the descriptions as needed
+        chapters.extend(description_extractor.extract_content_as_chapters(filepath))
+
+    print(f"Processing {len(chapters)} chapters...")
+    current_description = {}
+    for chapter_number, chapter_content in enumerate(chapters, start=1):
+        print(f"\nProcessing chapter {chapter_number}...")
+
+        # Dividing chapter into sections
+        sections = description_extractor.split_text_into_sections(chapter_content)
+        all_descriptions = [description_extractor.extract_descriptions_from_section(section, local_mode=local_mode)
+                            for section in sections]
+
+        # Combine sections in one
+        if len(all_descriptions) > 1:
+            single_description = description_extractor.enhance_descriptions(all_descriptions, local_mode=local_mode)
+        else:
+            single_description = all_descriptions[0]
+
+        # Combine chapters in one
+        if chapter_number > 1:
+            current_description = description_extractor.enhance_descriptions([single_description, current_description],
+                                                                             local_mode=local_mode)
+        else:
+            current_description = single_description
+
+    # Second loop, this time to get a scene per chapter/chapter section that we can draw with DALL·E
+    for chapter_number, chapter_content in enumerate(chapters, start=1):
+        scene_prompt = scene_generator.generate_dalle_prompt_from_chapter_and_data(chapter_content, current_description,
+                                                                                   local_mode=local_mode)
+        print(scene_prompt)
 
 
 if __name__ == "__main__":
